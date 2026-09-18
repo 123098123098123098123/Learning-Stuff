@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09090b">
+  <title>Neon Dodger</title>
+  <style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f4f4f5;background:#09090b;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 0%,rgba(99,102,241,.18),transparent 38%),#09090b;overflow:hidden}
+.game-shell{width:min(94vw,760px)}
+.hud{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:16px;margin-bottom:12px}
+.hud>div:last-child{text-align:right}
+.label,.eyebrow{display:block;font-size:.68rem;letter-spacing:.18em;color:#a1a1aa}
+.hud strong{display:block;font-size:1.35rem;line-height:1;margin-top:4px}
+.title{font-weight:800;letter-spacing:.16em;font-size:.9rem}
+.game-card{position:relative;aspect-ratio:16/10;border:1px solid #27272a;border-radius:18px;overflow:hidden;background:#0f1015;box-shadow:0 20px 80px rgba(0,0,0,.45)}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:rgba(9,9,11,.62);backdrop-filter:blur(8px);transition:opacity .2s ease}
+.overlay.hidden{opacity:0;pointer-events:none}
+.panel{width:min(420px,100%);padding:30px;border:1px solid #3f3f46;border-radius:16px;text-align:center;background:rgba(24,24,27,.88);box-shadow:0 12px 50px rgba(0,0,0,.35)}
+.panel h1{margin:6px 0 10px;font-size:clamp(2rem,7vw,3.4rem);letter-spacing:-.04em}
+.panel p:not(.eyebrow){color:#d4d4d8;line-height:1.5}
+button{margin:14px 0 12px;padding:12px 22px;border:0;border-radius:10px;color:white;background:#6366f1;font:inherit;font-weight:750;cursor:pointer;box-shadow:0 8px 25px rgba(99,102,241,.28)}
+button:hover{filter:brightness(1.1)}
+button:active{transform:translateY(1px)}
+.hint{font-size:.78rem!important;color:#a1a1aa!important}
+kbd{padding:2px 6px;border:1px solid #52525b;border-bottom-width:2px;border-radius:5px;font-size:.7rem}
+footer{display:flex;justify-content:center;gap:10px;margin-top:12px;color:#71717a;font-size:.72rem;letter-spacing:.04em}
+@media(max-width:520px){.title{font-size:.72rem}.game-card{border-radius:12px}.panel{padding:22px}}
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <header class="hud">
+      <div><span class="label">SCORE</span><strong id="score">0</strong></div>
+      <div class="title">NEON DODGER</div>
+      <div><span class="label">BEST</span><strong id="best">0</strong></div>
+    </header>
+    <section class="game-card">
+      <canvas id="game" aria-label="Neon Dodger game"></canvas>
+      <div id="overlay" class="overlay">
+        <div class="panel">
+          <p class="eyebrow">ARCADE // 01</p>
+          <h1>Neon Dodger</h1>
+          <p>Dodge the falling blocks. Survive as long as you can.</p>
+          <button id="start">Start Game</button>
+          <p class="hint">Move with <kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></p>
+        </div>
+      </div>
+    </section>
+    <footer><span>ESC to pause</span><span>•</span><span>Touch &amp; drag on mobile</span></footer>
+  </main>
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),overlay=document.getElementById("overlay"),startBtn=document.getElementById("start");
+const state={running:false,paused:false,score:0,best:Number(localStorage.getItem("neon-dodger-best")||0),speed:2.4,spawnTimer:0,lastTime:0,player:{x:.5,y:.88,w:.065,h:.035,targetX:.5},obstacles:[],particles:[]};
+bestEl.textContent=state.best;
+function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener("resize",resize);resize();
+function reset(){state.score=0;state.speed=2.4;state.spawnTimer=0;state.obstacles=[];state.particles=[];state.player.x=.5;state.player.targetX=.5;scoreEl.textContent="0"}
+function start(){reset();state.running=true;state.paused=false;overlay.classList.add("hidden");startBtn.textContent="Restart"}
+function gameOver(){state.running=false;if(state.score>state.best){state.best=state.score;localStorage.setItem("neon-dodger-best",state.best);bestEl.textContent=state.best}overlay.querySelector("h1").textContent="Game Over";overlay.querySelector("p:not(.eyebrow)").textContent=`You scored ${state.score}. Can you beat your best?`;startBtn.textContent="Play Again";overlay.classList.remove("hidden")}
+function spawn(){const w=.045+Math.random()*.065;state.obstacles.push({x:w/2+Math.random()*(1-w),y:-.06,w,h:.025+Math.random()*.045,drift:(Math.random()-.5)*.15})}
+function burst(x,y){for(let i=0;i<18;i++){const a=Math.random()*Math.PI*2;state.particles.push({x,y,vx:Math.cos(a)*(.002+Math.random()*.004),vy:Math.sin(a)*(.002+Math.random()*.004),life:1})}}
+function overlaps(a,b){return Math.abs(a.x-b.x)<(a.w+b.w)/2&&Math.abs(a.y-b.y)<(a.h+b.h)/2}
+function update(dt){if(!state.running||state.paused)return;const difficulty=Math.min(state.score/800,1);state.speed=2.4+difficulty*2.2;state.player.x+=(state.player.targetX-state.player.x)*Math.min(dt*12,1);state.player.x=Math.max(state.player.w/2,Math.min(1-state.player.w/2,state.player.x));state.spawnTimer-=dt;if(state.spawnTimer<=0){spawn();state.spawnTimer=Math.max(.18,.62-state.score/2400)}
+for(const o of state.obstacles){o.y+=state.speed*dt*.12;o.x+=o.drift*dt;if(o.x<o.w/2||o.x>1-o.w/2)o.drift*=-1;if(overlaps(state.player,o)){burst(state.player.x,state.player.y);gameOver();return}}
+state.obstacles=state.obstacles.filter(o=>{if(o.y>1.08){state.score++;scoreEl.textContent=state.score;return false}return true});
+for(const p of state.particles){p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.life-=dt*2.2}state.particles=state.particles.filter(p=>p.life>0)}
+function draw(){const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.strokeStyle="rgba(161,161,170,.09)";ctx.lineWidth=1;for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,"rgba(99,102,241,.10)");grad.addColorStop(1,"rgba(9,9,11,0)");ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);const p=state.player;ctx.fillStyle="#f4f4f5";ctx.shadowBlur=18;ctx.shadowColor="#818cf8";ctx.fillRect((p.x-p.w/2)*w,(p.y-p.h/2)*h,p.w*w,p.h*h);ctx.shadowBlur=0;for(const o of state.obstacles){ctx.fillStyle="#a1a1aa";ctx.shadowBlur=14;ctx.shadowColor="#71717a";ctx.fillRect((o.x-o.w/2)*w,(o.y-o.h/2)*h,o.w*w,o.h*h)}ctx.shadowBlur=0;for(const p of state.particles){ctx.globalAlpha=p.life;ctx.fillStyle="#c7d2fe";ctx.fillRect(p.x*w,p.y*h,3,3)}ctx.globalAlpha=1;if(state.paused&&state.running){ctx.fillStyle="rgba(9,9,11,.5)";ctx.fillRect(0,0,w,h);ctx.fillStyle="#f4f4f5";ctx.font="700 24px system-ui";ctx.textAlign="center";ctx.fillText("PAUSED",w/2,h/2)}}
+function loop(t){const dt=Math.min((t-state.lastTime)/1000||0,.033);state.lastTime=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+function setTarget(x){const r=canvas.getBoundingClientRect();state.player.targetX=(x-r.left)/r.width}canvas.addEventListener("pointermove",e=>setTarget(e.clientX));canvas.addEventListener("pointerdown",e=>{canvas.setPointerCapture(e.pointerId);setTarget(e.clientX)});
+const keys=new Set;addEventListener("keydown",e=>{if(["ArrowLeft","ArrowRight","a","d","A","D","Escape"," "].includes(e.key))e.preventDefault();keys.add(e.key);if(e.key==="Escape"&&state.running)state.paused=!state.paused;if((e.key===" "||e.key==="Enter")&&!state.running)start()});addEventListener("keyup",e=>keys.delete(e.key));
+setInterval(()=>{if(!state.running||state.paused)return;if(keys.has("ArrowLeft")||keys.has("a")||keys.has("A"))state.player.targetX-=.035;if(keys.has("ArrowRight")||keys.has("d")||keys.has("D"))state.player.targetX+=.035},16);startBtn.addEventListener("click",start);
+</script>
+</body>
+</html>
