@@ -19,14 +19,14 @@ canvas{display:block;width:100vw;height:100vh;background:#171b20}
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
-  <div id="stats" class="panel"><div>💵 <span class="money">$<span id="cash">0</span></span></div><div>🚨 <span id="stars" class="wanted">☆☆☆☆☆</span></div><div class="hint">WASD / Arrow Keys • E enter/exit car • Shift sprint • R restart</div></div>
-  <div id="mission" class="panel"><div class="missionTitle">NIGHT RUN</div><div id="objective">Reach the pink marker.</div><div class="progress"><i id="bar"></i></div></div>
+  <div id="stats" class="panel"><div>💵 <span class="money">$<span id="cash">0</span></span></div><div>🚨 <span id="stars" class="wanted">☆☆☆☆☆</span></div><div class="hint">WASD / Arrows • E enter/exit • Shift sprint • Mouse/tap shoot • R reload • F exit/restart</div></div>
+  <div id="mission" class="panel"><div class="missionTitle">NIGHT RUN</div><div id="objective">Reach the pink marker.</div><div class="progress"><i id="bar"></i></div><div style="margin-top:7px;font-weight:800">🔫 <span id="ammo">12</span>/12 <span style="opacity:.65">• R reload</span></div></div>
   <div id="toast" class="panel"></div>
 </div>
-<div id="mobile"><div id="stick" class="stick"><b></b></div><div class="buttons"><button class="btn" id="enter">E</button><button class="btn" id="sprint">RUN</button></div></div>
+<div id="mobile"><div id="stick" class="stick"><b></b></div><div class="buttons"><button class="btn" id="shoot">FIRE</button><button class="btn" id="reload">RELOAD</button><button class="btn" id="enter">E</button><button class="btn" id="sprint">RUN</button></div></div>
 <script>
 const c=document.querySelector('canvas'),x=c.getContext('2d'),cashEl=document.querySelector('#cash'),starsEl=document.querySelector('#stars'),obj=document.querySelector('#objective'),bar=document.querySelector('#bar'),toast=document.querySelector('#toast');
-let W,H,dpr,keys={},touch={x:0,y:0},toastTimer=0;
+let W,H,dpr,keys={},touch={x:0,y:0},toastTimer=0,mouse={x:0,y:0,down:false},ammo=12,maxAmmo=12,reloading=false,reloadTimer=0,shots=[];
 function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
 const world={w:3200,h:2200}, player={x:1600,y:1100,r:15,angle:0,onCar:false,cash:0,wanted:0};
 let cam={x:0,y:0}, cars=[], people=[], particles=[], pickups=[], mission={stage:0,got:0,total:5};
@@ -37,7 +37,10 @@ for(let i=0;i<55;i++)cars.push({x:rnd(120,3080),y:rnd(120,2080),w:36,h:20,a:Math
 for(let i=0;i<45;i++)people.push({x:rnd(100,3100),y:rnd(100,2100),r:7,a:Math.random()*6.28});
 for(let i=0;i<5;i++)pickups.push({x:[520,1180,2060,2680,1540][i],y:[520,430,920,1740,1880][i],got:false});
 function roadAt(v,arr){return arr.reduce((p,n)=>Math.abs(n-v)<Math.abs(p-v)?n:p,arr[0])}
+function shoot(){if(reloading||ammo<=0)return;if(!player.onCar&&mouse.x===0&&mouse.y===0)return;ammo--;let ang=player.angle;if(mouse.x||mouse.y){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;ang=Math.atan2(wy-player.y,wx-player.x);player.angle=ang}shots.push({x:player.x,y:player.y,a:ang,life:.5});let hit=null,best=999;for(const p of people){const vx=p.x-player.x,vy=p.y-player.y,proj=vx*Math.cos(ang)+vy*Math.sin(ang),side=Math.abs(-vx*Math.sin(ang)+vy*Math.cos(ang));if(proj>0&&proj<700&&side<24&&proj<best){best=proj;hit=p}}if(hit){for(let i=0;i<18;i++)particles.push({x:hit.x+rnd(-8,8),y:hit.y+rnd(-8,8),vx:rnd(-3,3),vy:rnd(-3,3),life:rnd(.35,.8)});hit.x=rnd(100,3100);hit.y=rnd(100,2100);player.wanted=Math.min(5,player.wanted+1);toastMsg('TARGET HIT — SPLATTER!')}else toastMsg('BANG!')} 
+function reload(){if(reloading||ammo===maxAmmo)return;reloading=true;reloadTimer=1.15;toastMsg('RELOADING...')}
 function update(dt){
+ if(reloading){reloadTimer-=dt;if(reloadTimer<=0){ammo=maxAmmo;reloading=false;toastMsg('RELOADED')}}
  let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
  if(touch.x||touch.y){dx=touch.x;dy=touch.y}
  const len=Math.hypot(dx,dy)||1, speed=(player.onCar?5.8:((keys.shift||keys.run)?3.8:2.6));
@@ -49,8 +52,8 @@ function update(dt){
  for(const q of pickups)if(!q.got&&dist(player,q)<30){q.got=true;player.cash+=250;mission.got++;toastMsg('+$250 CASH');if(mission.got===mission.total){mission.stage=1;toastMsg('All packages collected — reach the pink marker!')}}
  if(mission.stage===1&&Math.hypot(player.x-2850,player.y-420)<55){mission.stage=2;player.cash+=1000;toastMsg('JOB COMPLETE +$1,000');}
  if(player.wanted>0&&Math.random()<.0008)player.wanted=Math.max(0,player.wanted-1);
- for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.life-=dt}particles=particles.filter(p=>p.life>0);
- cashEl.textContent=player.cash;starsEl.textContent='★'.repeat(player.wanted)+'☆'.repeat(5-player.wanted);
+ for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.life-=dt}particles=particles.filter(p=>p.life>0);shots=shots.filter(s=>{s.life-=dt;return s.life>0});if(mouse.down)shoot();
+ document.querySelector('#ammo').textContent=reloading?'…':ammo; cashEl.textContent=player.cash;starsEl.textContent='★'.repeat(player.wanted)+'☆'.repeat(5-player.wanted);
  obj.textContent=mission.stage===0?'Collect the 5 pink packages.':mission.stage===1?'Take the packages to the pink marker.':'Free roam — cause some chaos.';
  bar.style.width=(mission.stage===0?mission.got/mission.total*100:mission.stage===1?100:100)+'%';
  cam.x+=(player.x-W/2-cam.x)*.12;cam.y+=(player.y-H/2-cam.y)*.12;
@@ -71,15 +74,15 @@ function draw(){
  for(const p of people){x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle='#f0b58a';x.beginPath();x.arc(0,-8,6,0,7);x.fill();x.fillStyle='#62a8ff';x.fillRect(-6,-2,12,17);x.restore()}
  for(const car of cars){x.save();x.translate(car.x,car.y);x.rotate(car.a);x.fillStyle='#111';x.fillRect(-23,-13,46,26);x.fillStyle=car.color;x.fillRect(-20,-10,40,20);x.fillStyle='#bde9ff';x.fillRect(-5,-9,13,18);x.fillStyle='#111';x.fillRect(-19,-15,10,4);x.fillRect(9,11,10,4);x.restore()}
  x.save();x.translate(player.x,player.y);x.rotate(player.angle);if(player.onCar){x.fillStyle='#ff4f87';x.fillRect(-24,-14,48,28);x.fillStyle='#bde9ff';x.fillRect(-5,-10,14,20)}else{x.fillStyle='#fff';x.beginPath();x.arc(0,0,player.r,0,7);x.fill();x.fillStyle='#ff4f87';x.beginPath();x.arc(0,-4,7,0,7);x.fill();x.fillStyle='#111';x.fillRect(3,-2,14,5)}x.restore();
- for(const p of particles){x.globalAlpha=Math.max(0,p.life);x.fillStyle='#ff4f87';x.fillRect(p.x,p.y,4,4)}x.globalAlpha=1;x.restore();
+ for(const s of shots){x.save();x.globalAlpha=Math.max(0,s.life*2);x.strokeStyle='#ffd84d';x.lineWidth=3;x.beginPath();x.moveTo(s.x,s.y);x.lineTo(s.x+Math.cos(s.a)*35,s.y+Math.sin(s.a)*35);x.stroke();x.restore()}for(const p of particles){x.globalAlpha=Math.max(0,p.life);x.fillStyle='#ff4f87';x.fillRect(p.x,p.y,4,4)}x.globalAlpha=1;x.restore();
 }
 function loop(t){const dt=Math.min(.033,(t-(loop.last||t))/1000);loop.last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
-addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key.toLowerCase()==='e')toggleCar();if(e.key.toLowerCase()==='r')location.reload()});
-addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;const k=e.key.toLowerCase();if(k==='e')toggleCar();if(k==='r')reload();if(k==='f')shoot()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);c.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});c.addEventListener('mousedown',e=>{mouse.down=true;mouse.x=e.clientX;mouse.y=e.clientY});addEventListener('mouseup',()=>mouse.down=false);c.addEventListener('touchstart',e=>{const t=e.touches[0];mouse.x=t.clientX;mouse.y=t.clientY;shoot()},{passive:true});
 function toggleCar(){let nearest=cars.reduce((a,b)=>dist(player,b)<dist(player,a)?b:a,cars[0]);if(player.onCar){player.onCar=false;player.car=null;toastMsg('On foot')}else if(dist(player,nearest)<55){player.onCar=true;player.car=nearest;toastMsg('Vehicle acquired')}}
-document.querySelector('#enter').onclick=toggleCar;document.querySelector('#sprint').ontouchstart=()=>keys.shift=true;document.querySelector('#sprint').ontouchend=()=>keys.shift=false;
+document.querySelector('#enter').onclick=toggleCar;document.querySelector('#shoot').onpointerdown=()=>shoot();document.querySelector('#reload').onclick=reload;document.querySelector('#sprint').ontouchstart=()=>keys.shift=true;document.querySelector('#sprint').ontouchend=()=>keys.shift=false;
 const st=document.querySelector('#stick');st.addEventListener('pointermove',e=>{if(e.buttons){const r=st.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;touch.x=Math.max(-1,Math.min(1,(e.clientX-cx)/(r.width/2)));touch.y=Math.max(-1,Math.min(1,(e.clientY-cy)/(r.height/2)));st.firstElementChild.style.transform=`translate(${touch.x*32}px,${touch.y*32}px)`}});st.addEventListener('pointerup',()=>{touch.x=touch.y=0;st.firstElementChild.style.transform=''});
-toastMsg('Welcome to Vice Streets');
+toastMsg('Welcome to Vice Streets — FIRE to shoot, R to reload');
 </script>
 </body>
 </html>
