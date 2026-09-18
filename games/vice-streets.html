@@ -33,8 +33,8 @@ let cam={x:0,y:0}, cars=[], people=[], particles=[], pickups=[], mission={stage:
 const roadX=[300,800,1300,1800,2300,2800],roadY=[300,750,1200,1650,2000];
 function rnd(a,b){return a+Math.random()*(b-a)} function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function toastMsg(t){toast.textContent=t;toast.style.opacity=1;toastTimer=2.5}
-for(let i=0;i<55;i++)cars.push({x:rnd(120,3080),y:rnd(120,2080),w:36,h:20,a:Math.random()*6.28,v:rnd(.4,1.4),color:['#e84d67','#55b8ff','#f6c44f','#9b73ff','#55e09a'][i%5],npc:true});
-for(let i=0;i<45;i++)people.push({x:rnd(100,3100),y:rnd(100,2100),r:7,a:Math.random()*6.28});
+for(let i=0;i<55;i++)cars.push({x:rnd(120,3080),y:rnd(120,2080),w:42,h:22,a:Math.random()*6.28,v:rnd(.4,1.4),color:['#b52f45','#2478b5','#c59a27','#6847a8','#278d59','#777'][i%6],npc:true,type:i%3});
+for(let i=0;i<45;i++)people.push({x:rnd(100,3100),y:rnd(100,2100),r:7,a:Math.random()*6.28,skin:['#f0b58a','#c9825e','#8d553c','#e2a071'][i%4],shirt:['#263b59','#6d2938','#405b3d','#5b4a73','#7b6748'][i%5],pants:['#20242b','#39414c','#17191e','#5b5146'][i%4]});
 for(let i=0;i<5;i++)pickups.push({x:[520,1180,2060,2680,1540][i],y:[520,430,920,1740,1880][i],got:false});
 function roadAt(v,arr){return arr.reduce((p,n)=>Math.abs(n-v)<Math.abs(p-v)?n:p,arr[0])}
 function shoot(){if(reloading||ammo<=0)return;ammo--;let ang=player.angle;if(mouse.x||mouse.y){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;const aim=Math.atan2(wy-player.y,wx-player.x);if(Math.hypot(wx-player.x,wy-player.y)>8){ang=aim;player.angle=aim}}shots.push({x:player.x,y:player.y,a:ang,life:.5});let hit=null,best=999;for(const p of people){const vx=p.x-player.x,vy=p.y-player.y,proj=vx*Math.cos(ang)+vy*Math.sin(ang),side=Math.abs(-vx*Math.sin(ang)+vy*Math.cos(ang));if(proj>0&&proj<900&&side<55&&proj<best){best=proj;hit=p}}if(hit){for(let i=0;i<18;i++)particles.push({x:hit.x+rnd(-8,8),y:hit.y+rnd(-8,8),vx:rnd(-3,3),vy:rnd(-3,3),life:rnd(.35,.8)});hit.x=rnd(100,3100);hit.y=rnd(100,2100);player.wanted=Math.min(5,player.wanted+1);toastMsg('TARGET HIT — SPLATTER!')}else toastMsg('BANG!')} 
@@ -62,8 +62,15 @@ function update(dt){
 function draw(){
  x.clearRect(0,0,W,H);x.save();x.translate(-cam.x,-cam.y);
  x.fillStyle='#20252b';x.fillRect(0,0,world.w,world.h);
- // blocks
- for(let gx=60;gx<world.w;gx+=250)for(let gy=60;gy<world.h;gy+=220){x.fillStyle=(gx+gy)%500?'#2a3035':'#30363b';x.fillRect(gx,gy,185,145)}
+ // detailed city blocks and buildings
+ for(let gx=60;gx<world.w;gx+=250)for(let gy=60;gy<world.h;gy+=220){
+  const h=95+((gx*7+gy*3)%120),w=185;
+  x.fillStyle='#171a1e';x.fillRect(gx+7,gy+9,w,h+8);
+  x.fillStyle=((gx+gy)%500)?'#50545a':'#62666b';x.fillRect(gx,gy,w,h);
+  x.fillStyle='#74777a';x.fillRect(gx+5,gy+5,w-10,7);
+  for(let wx=gx+15;wx<gx+w-12;wx+=25)for(let wy=gy+18;wy<gy+h-12;wy+=24){x.fillStyle=((wx+wy)%3)?'#9aa0a3':'#34393e';x.fillRect(wx,wy,11,8)}
+  x.fillStyle='#25282c';x.fillRect(gx+18,gy+h-35,34,35);x.fillRect(gx+w-52,gy+h-35,34,35);
+ }
  // roads
  x.fillStyle='#383d42';for(const r of roadX)x.fillRect(r-48,0,96,world.h);for(const r of roadY)x.fillRect(0,r-48,world.w,96);
  x.strokeStyle='#d5b84a';x.lineWidth=2;x.setLineDash([20,18]);for(const r of roadX){x.beginPath();x.moveTo(r,0);x.lineTo(r,world.h);x.stroke()}for(const r of roadY){x.beginPath();x.moveTo(0,r);x.lineTo(world.w,r);x.stroke()}x.setLineDash([]);
@@ -71,9 +78,9 @@ function draw(){
  const target=mission.stage===1?{x:2850,y:420}:pickups.find(q=>!q.got);
  if(target){x.strokeStyle='#ff4f87';x.lineWidth=5;x.beginPath();x.arc(target.x,target.y,25+Math.sin(Date.now()/120)*5,0,7);x.stroke()}
  for(const q of pickups)if(!q.got){x.fillStyle='#ff4f87';x.beginPath();x.arc(q.x,q.y,10,0,7);x.fill();x.fillStyle='#fff';x.font='bold 11px sans-serif';x.textAlign='center';x.fillText('$',q.x,q.y+4)}
- for(const p of people){x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle='#f0b58a';x.beginPath();x.arc(0,-8,6,0,7);x.fill();x.fillStyle='#62a8ff';x.fillRect(-6,-2,12,17);x.restore()}
- for(const car of cars){x.save();x.translate(car.x,car.y);x.rotate(car.a);x.fillStyle='#111';x.fillRect(-23,-13,46,26);x.fillStyle=car.color;x.fillRect(-20,-10,40,20);x.fillStyle='#bde9ff';x.fillRect(-5,-9,13,18);x.fillStyle='#111';x.fillRect(-19,-15,10,4);x.fillRect(9,11,10,4);x.restore()}
- x.save();x.translate(player.x,player.y);x.rotate(player.angle);if(player.onCar){x.fillStyle='#ff4f87';x.fillRect(-24,-14,48,28);x.fillStyle='#bde9ff';x.fillRect(-5,-10,14,20)}else{x.fillStyle='#fff';x.beginPath();x.arc(0,0,player.r,0,7);x.fill();x.fillStyle='#ff4f87';x.beginPath();x.arc(0,-4,7,0,7);x.fill();x.fillStyle='#111';x.fillRect(3,-2,14,5)}x.restore();
+ for(const p of people){x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle='#111';x.fillRect(-5,13,4,8);x.fillRect(1,13,4,8);x.fillStyle=p.pants;x.fillRect(-6,5,12,10);x.fillStyle=p.shirt;x.beginPath();x.roundRect(-7,-1,14,10,3);x.fill();x.fillStyle=p.skin;x.beginPath();x.arc(0,-7,5.5,0,7);x.fill();x.fillStyle='#3a241a';x.beginPath();x.arc(0,-10,5.5,Math.PI,Math.PI*2);x.fill();x.fillStyle=p.skin;x.fillRect(-10,1,3,7);x.fillRect(7,1,3,7);x.restore()}
+ for(const car of cars){x.save();x.translate(car.x,car.y);x.rotate(car.a);x.fillStyle='#111';x.roundRect(-24,-13,48,26,6);x.fill();x.fillStyle=car.color;x.roundRect(-21,-10,42,20,5);x.fill();x.fillStyle='#202a32';x.beginPath();x.roundRect(-8,-8,17,16,3);x.fill();x.fillStyle='#9fc7d8';x.fillRect(-5,-7,11,6);x.fillStyle='#d8e6eb';x.fillRect(-5,1,11,6);x.fillStyle='#111';x.fillRect(-19,-15,9,5);x.fillRect(10,-15,9,5);x.fillRect(-19,10,9,5);x.fillRect(10,10,9,5);x.fillStyle='#f5e6a2';x.fillRect(20,-7,3,5);x.fillStyle='#d34a4a';x.fillRect(-23,2,3,5);x.restore()}
+ x.save();x.translate(player.x,player.y);x.rotate(player.angle);if(player.onCar){x.fillStyle='#111';x.roundRect(-25,-14,50,28,6);x.fill();x.fillStyle='#ff4f87';x.roundRect(-22,-11,44,22,5);x.fill();x.fillStyle='#202a32';x.roundRect(-8,-9,18,18,3);x.fill();x.fillStyle='#bde9ff';x.fillRect(-5,-7,12,6);x.fillRect(-5,1,12,6);x.fillStyle='#111';x.fillRect(-20,-16,10,5);x.fillRect(10,-16,10,5);x.fillRect(-20,11,10,5);x.fillRect(10,11,10,5)}else{x.fillStyle='#17191d';x.fillRect(-6,9,5,9);x.fillRect(1,9,5,9);x.fillStyle='#2d4770';x.beginPath();x.roundRect(-8,-1,16,12,4);x.fill();x.fillStyle='#e0a277';x.beginPath();x.arc(0,-7,6,0,7);x.fill();x.fillStyle='#2a1b16';x.beginPath();x.arc(0,-10,6,Math.PI,Math.PI*2);x.fill();x.fillStyle='#111';x.fillRect(5,-1,15,4)}x.restore();
  // aim line / gun direction
 x.save();x.translate(player.x,player.y);x.rotate(player.angle);x.strokeStyle='#ffd84d';x.lineWidth=4;x.beginPath();x.moveTo(6,0);x.lineTo(32,0);x.stroke();x.restore();
  for(const s of shots){x.save();x.globalAlpha=Math.max(0,s.life*2);x.strokeStyle='#ffd84d';x.lineWidth=3;x.beginPath();x.moveTo(s.x,s.y);x.lineTo(s.x+Math.cos(s.a)*35,s.y+Math.sin(s.a)*35);x.stroke();x.restore()}for(const p of particles){x.globalAlpha=Math.max(0,p.life);x.fillStyle='#ff4f87';x.fillRect(p.x,p.y,4,4)}x.globalAlpha=1;x.restore();
