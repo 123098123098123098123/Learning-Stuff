@@ -19,14 +19,14 @@ canvas{display:block;width:100vw;height:100vh;background:#171b20}
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
-  <div id="stats" class="panel"><div>💵 <span class="money">$<span id="cash">0</span></span></div><div>🚨 <span id="stars" class="wanted">☆☆☆☆☆</span></div><div class="hint">WASD / Arrows • E enter/exit • Shift sprint • Mouse/tap shoot • R reload • F exit/restart</div></div>
+  <div id="stats" class="panel"><div>💵 <span class="money">$<span id="cash">0</span></span></div><div>❤️ <span id="health">100</span>/100</div><div>🚨 <span id="stars" class="wanted">☆☆☆☆☆</span></div><div class="hint">WASD / Arrows • E enter/exit • Shift sprint • Mouse/tap shoot • R reload • F exit/restart</div></div>
   <div id="mission" class="panel"><div class="missionTitle">NIGHT RUN</div><div style="color:#9cff6b;font-weight:800">🧟 WAVE <span id="wave">1</span> • 💰 $50/ZOMBIE</div><div id="objective">Reach the pink marker.</div><div class="progress"><i id="bar"></i></div><div style="margin-top:7px;font-weight:800">🔫 <span id="ammo">12</span>/12 <span style="opacity:.65">• R reload</span></div></div>
   <div id="toast" class="panel"></div>
 </div>
 <div id="mobile"><div id="stick" class="stick"><b></b></div><div class="buttons"><button class="btn" id="shoot">FIRE</button><button class="btn" id="reload">RELOAD</button><button class="btn" id="enter">E</button><button class="btn" id="sprint">RUN</button></div></div>
 <script>
 const c=document.querySelector('canvas'),x=c.getContext('2d'),cashEl=document.querySelector('#cash'),starsEl=document.querySelector('#stars'),obj=document.querySelector('#objective'),bar=document.querySelector('#bar'),toast=document.querySelector('#toast');
-let W,H,dpr,keys={},touch={x:0,y:0},toastTimer=0,mouse={x:0,y:0,down:false},ammo=12,maxAmmo=12,reloading=false,reloadTimer=0,shots=[],zombies=[],wave=1,zKills=0,gunLevel=1,fireCooldown=0;
+let W,H,dpr,keys={},touch={x:0,y:0},toastTimer=0,mouse={x:0,y:0,down:false},ammo=12,maxAmmo=12,reloading=false,reloadTimer=0,shots=[],zombies=[],wave=1,zKills=0,gunLevel=1,fireCooldown=0,health=100,hurtCooldown=0;
 function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
 const world={w:3200,h:2200}, player={x:1600,y:1100,r:15,angle:0,onCar:false,cash:0,wanted:0};
 function spawnWave(){const count=Math.min(5+wave*2,34);for(let i=0;i<count;i++){let a=Math.random()*6.28,d=rnd(420,900);zombies.push({x:Math.max(40,Math.min(world.w-40,player.x+Math.cos(a)*d)),y:Math.max(40,Math.min(world.h-40,player.y+Math.sin(a)*d)),r:11+Math.min(5,wave*.35),speed:.55+wave*.075,hp:1+Math.floor((wave-1)/3),hit:0});}toastMsg('ZOMBIE WAVE '+wave+' — SURVIVE!')}
@@ -42,7 +42,7 @@ function roadAt(v,arr){return arr.reduce((p,n)=>Math.abs(n-v)<Math.abs(p-v)?n:p,
 function shoot(){if(reloading||ammo<=0||fireCooldown>0)return;ammo--;fireCooldown=Math.max(.09,.28-(gunLevel-1)*.035);let ang=player.angle;if(mouse.x||mouse.y){const wx=mouse.x+cam.x,wy=mouse.y+cam.y;const aim=Math.atan2(wy-player.y,wx-player.x);if(Math.hypot(wx-player.x,wy-player.y)>8){ang=aim;player.angle=aim}}shots.push({x:player.x,y:player.y,a:ang,life:.5});let hit=null,best=999;for(const p of people){const vx=p.x-player.x,vy=p.y-player.y,proj=vx*Math.cos(ang)+vy*Math.sin(ang),side=Math.abs(-vx*Math.sin(ang)+vy*Math.cos(ang));if(proj>0&&proj<900&&side<55&&proj<best){best=proj;hit=p}}if(hit){for(let i=0;i<18;i++)particles.push({x:hit.x+rnd(-8,8),y:hit.y+rnd(-8,8),vx:rnd(-3,3),vy:rnd(-3,3),life:rnd(.35,.8)});hit.x=rnd(100,3100);hit.y=rnd(100,2100);player.wanted=Math.min(5,player.wanted+1);toastMsg('TARGET HIT — SPLATTER!')}else {for(let i=0;i<zombies.length;i++){const z=zombies[i],vx=z.x-player.x,vy=z.y-player.y,proj=vx*Math.cos(ang)+vy*Math.sin(ang),side=Math.abs(-vx*Math.sin(ang)+vy*Math.cos(ang));if(proj>0&&proj<900&&side<65){z.hp--;z.hit=.12;if(z.hp<=0){for(let k=0;k<20;k++)particles.push({x:z.x+rnd(-10,10),y:z.y+rnd(-10,10),vx:rnd(-3,3),vy:rnd(-3,3),life:rnd(.3,.9)});zombies.splice(i,1);zKills++;player.cash+=50;toastMsg('+ $50 ZOMBIE');if(zombies.length===0){wave++;player.cash+=wave*100;spawnWave()}break}break}}if(!zombies.length)spawnWave();if(!zombies.length)toastMsg('BANG!')}} 
 function reload(){if(reloading||ammo===maxAmmo)return;reloading=true;reloadTimer=1.15;toastMsg('RELOADING...')}
 function update(dt){
- fireCooldown=Math.max(0,fireCooldown-dt);
+ fireCooldown=Math.max(0,fireCooldown-dt);\n hurtCooldown=Math.max(0,hurtCooldown-dt);
  if(reloading){reloadTimer-=dt;if(reloadTimer<=0){ammo=maxAmmo;reloading=false;toastMsg('RELOADED')}}
  let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
  if(touch.x||touch.y){dx=touch.x;dy=touch.y}
@@ -52,13 +52,13 @@ function update(dt){
  if(player.onCar) for(const car of cars) if(car===player.car){car.x=player.x;car.y=player.y;car.a=player.angle}
  for(const car of cars) if(car.npc){car.x+=Math.cos(car.a)*car.v*dt*60;car.y+=Math.sin(car.a)*car.v*dt*60;if(car.x<30||car.x>world.w-30)car.a=Math.PI-car.a;if(car.y<30||car.y>world.h-30)car.a=-car.a}
  for(const p of people){p.x+=Math.cos(p.a)*.35*dt*60;p.y+=Math.sin(p.a)*.35*dt*60;if(Math.random()<.01)p.a+=rnd(-1,1)}
- for(const z of zombies){const a=Math.atan2(player.y-z.y,player.x-z.x),sp=z.speed*dt*60;z.x+=Math.cos(a)*sp;z.y+=Math.sin(a)*sp;z.hit=Math.max(0,z.hit-dt);if(Math.hypot(z.x-player.x,z.y-player.y)<player.r+z.r){player.cash=Math.max(0,player.cash-1);player.wanted=Math.min(5,player.wanted+1);z.x-=Math.cos(a)*8;z.y-=Math.sin(a)*8}}
+ for(const z of zombies){const a=Math.atan2(player.y-z.y,player.x-z.x),sp=z.speed*dt*60;z.x+=Math.cos(a)*sp;z.y+=Math.sin(a)*sp;z.hit=Math.max(0,z.hit-dt);if(Math.hypot(z.x-player.x,z.y-player.y)<player.r+z.r){if(hurtCooldown<=0){health=Math.max(0,health-10);hurtCooldown=.65;player.wanted=Math.min(5,player.wanted+1);toastMsg(health>0?'ZOMBIE HIT — -10 HEALTH':'YOU ARE OUT OF HEALTH');}z.x-=Math.cos(a)*8;z.y-=Math.sin(a)*8}}
 
  for(const q of pickups)if(!q.got&&dist(player,q)<30){q.got=true;player.cash+=250;mission.got++;toastMsg('+$250 CASH');if(mission.got===mission.total){mission.stage=1;toastMsg('All packages collected — reach the pink marker!')}}
  if(mission.stage===1&&Math.hypot(player.x-2850,player.y-420)<55){mission.stage=2;player.cash+=1000;toastMsg('JOB COMPLETE +$1,000');}
  if(player.wanted>0&&Math.random()<.0008)player.wanted=Math.max(0,player.wanted-1);
  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.life-=dt}particles=particles.filter(p=>p.life>0);shots=shots.filter(s=>{s.life-=dt;return s.life>0});if(mouse.down)shoot();
- document.querySelector('#ammo').textContent=reloading?'…':ammo; cashEl.textContent=player.cash;document.querySelector('#wave').textContent=wave;starsEl.textContent='★'.repeat(player.wanted)+'☆'.repeat(5-player.wanted);
+ document.querySelector('#ammo').textContent=reloading?'…':ammo; document.querySelector('#health').textContent=health; cashEl.textContent=player.cash;document.querySelector('#wave').textContent=wave;starsEl.textContent='★'.repeat(player.wanted)+'☆'.repeat(5-player.wanted);
  obj.textContent=mission.stage===0?'Collect the 5 pink packages.':mission.stage===1?'Take the packages to the pink marker.':'Free roam — cause some chaos.';
  bar.style.width=(mission.stage===0?mission.got/mission.total*100:mission.stage===1?100:100)+'%';
  cam.x+=(player.x-W/2-cam.x)*.12;cam.y+=(player.y-H/2-cam.y)*.12;
